@@ -11,27 +11,44 @@
     header{ padding:28px 20px 12px; text-align:center; }
     h1{ margin:0 0 8px; font-size:28px; letter-spacing:.5px; }
     .sub{ color:var(--muted); font-size:14px; }
-    .wrap{ max-width:1080px; margin:20px auto 40px; padding:0 16px; }
-    .card{ background:var(--card); border:1px solid rgba(255,255,255,.07); border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,.25); overflow:hidden; }
+    .wrap{ max-width:1200px; margin:20px auto 40px; padding:0 16px; }
+    .main-card{ background:var(--card); border:1px solid rgba(255,255,255,.07); border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,.25); overflow:hidden; }
     .toolbar{ display:flex; gap:10px; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.06); }
     .toolbar input{ flex:1; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.04); color:var(--text); outline:none; }
     .toolbar button{ padding:10px 12px; border-radius:10px; border:none; background:rgba(255,255,255,.08); color:var(--text); cursor:pointer; }
     .toolbar button:hover{ background:rgba(255,255,255,.14); }
-    .grid{ display:grid; grid-template-columns: 1fr; gap:16px; padding:14px; }
-    @media (min-width: 820px){ .grid{ grid-template-columns: 1fr 1fr; } }
-    .panel{ border:1px solid rgba(255,255,255,.06); border-radius:14px; overflow:hidden; }
-    .panel header{ display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-bottom:1px solid rgba(255,255,255,.06); text-align:left; }
-    .panel h2{ margin:0; font-size:16px; letter-spacing:.3px; }
-    .count{ font-size:12px; color:var(--muted); }
+    
+    .tables-container{ display:grid; grid-template-columns: 1fr; gap:2px; }
+    @media (min-width: 768px){ .tables-container{ grid-template-columns: 1fr 1fr; } }
+    
+    .table-panel{ background:var(--card); border-top:1px solid rgba(255,255,255,.06); }
+    .table-panel.absent{ border-left:3px solid var(--no); }
+    .table-panel.present{ border-left:3px solid var(--ok); }
+    @media (min-width: 768px){ 
+      .table-panel.present{ border-left:3px solid var(--ok); border-top:none; }
+      .table-panel.absent{ border-right:1px solid rgba(255,255,255,.06); }
+    }
+    
+    .table-header{ display:flex; justify-content:space-between; align-items:center; padding:16px 18px 12px; background:rgba(255,255,255,.02); }
+    .table-header h2{ margin:0; font-size:18px; letter-spacing:.3px; display:flex; align-items:center; gap:10px; }
+    .count{ font-size:13px; color:var(--muted); font-weight:normal; }
+    .hint{ padding:8px 18px; color:var(--muted); font-size:12px; border-bottom:1px solid rgba(255,255,255,.04); }
+    
     table{ width:100%; border-collapse:separate; border-spacing:0; }
-    thead th{ text-align:left; color:var(--muted); font-weight:600; padding:12px 14px; font-size:13px; border-bottom:1px solid rgba(255,255,255,.08); }
-    tbody td{ padding:12px 14px; border-bottom:1px solid rgba(255,255,255,.06); }
+    thead th{ text-align:left; color:var(--muted); font-weight:600; padding:12px 18px; font-size:13px; border-bottom:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.01); }
+    tbody td{ padding:14px 18px; border-bottom:1px solid rgba(255,255,255,.06); transition: background-color 0.2s; }
+    tbody tr:hover td{ background:rgba(255,255,255,.03); }
+    
     .badge{ padding:6px 10px; border-radius:999px; font-size:12px; font-weight:700; letter-spacing:.3px; display:inline-flex; align-items:center; gap:6px; }
     .ok{ background:rgba(29,185,84,.15); color:#9de2b5; border:1px solid rgba(29,185,84,.35); }
     .no{ background:rgba(255,94,91,.12); color:#ffb1af; border:1px solid rgba(255,94,91,.35); }
-    .footer{ padding:14px; font-size:12px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(255,255,255,.06); }
+    
+    .footer{ padding:14px; font-size:12px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(255,255,255,.06); background:rgba(255,255,255,.01); }
     .hidden{ display:none; }
-    .hint{ padding:10px 14px; color:var(--muted); font-size:12px; }
+    
+    .status-icon{ width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; }
+    .status-icon.absent{ background:var(--no); }
+    .status-icon.present{ background:var(--ok); }
   </style>
 </head>
 <body>
@@ -39,21 +56,25 @@
     <h1>出席狀況看板</h1>
     <div class="sub">此頁面會即時讀取 Google 試算表（重新整理即可看到最新資料）</div>
   </header>
+  
   <div class="wrap">
-    <div class="card">
+    <div class="main-card">
       <div class="toolbar">
         <input id="filter" placeholder="搜尋姓名…（兩邊同步過濾）" />
         <button id="refresh">重新讀取</button>
       </div>
 
-      <div class="grid">
-        <!-- 未出席 -->
-        <section class="panel">
-          <header>
-            <h2>未出席 <span class="badge no">未出席</span></h2>
+      <div class="tables-container">
+        <!-- 左側：未出席表 -->
+        <section class="table-panel absent">
+          <div class="table-header">
+            <h2>
+              <span class="status-icon absent"></span>
+              未出席人員
+            </h2>
             <span class="count">共 <span id="countAbsent">0</span> 人</span>
-          </header>
-          <div class="hint">左側列出目前未出席名單</div>
+          </div>
+          <div class="hint">以下為目前未出席名單</div>
           <table>
             <thead>
               <tr><th>姓名</th></tr>
@@ -64,13 +85,16 @@
           </table>
         </section>
 
-        <!-- 出席 -->
-        <section class="panel">
-          <header>
-            <h2>出席 <span class="badge ok">出席</span></h2>
+        <!-- 右側：出席表 -->
+        <section class="table-panel present">
+          <div class="table-header">
+            <h2>
+              <span class="status-icon present"></span>
+              出席人員
+            </h2>
             <span class="count">共 <span id="countPresent">0</span> 人</span>
-          </header>
-          <div class="hint">右側列出目前已出席名單</div>
+          </div>
+          <div class="hint">以下為目前已出席名單</div>
           <table>
             <thead>
               <tr><th>姓名</th></tr>
@@ -84,7 +108,7 @@
 
       <div class="footer">
         <span>最後更新：<span id="updatedAt">—</span></span>
-        <span id="error" class="hidden">無法載入資料，請檢查連結</span>
+        <span id="error" class="hidden" style="color:var(--no)">無法載入資料，請檢查連結</span>
       </div>
     </div>
   </div>
@@ -110,9 +134,7 @@
     }
 
     function parseCSV(text){
-      const lines = text.trim().split(/
-?
-/);
+      const lines = text.trim().split(/\r?\n/);
       const rows = [];
       let start = 0;
       if(lines.length && /姓名/.test(lines[0]) && /出席/.test(lines[0])) start = 1;
@@ -123,7 +145,7 @@
         const present = raw === 'TRUE' || raw === 'YES' || raw === '1' || raw === '出席';
         if(name) rows.push({ name, present });
       }
-      // 預設按姓名排序（先未出席、再出席）
+      // 預設按姓名排序
       rows.sort((a,b)=> a.name.localeCompare(b.name,'zh-Hant'));
       return rows;
     }
@@ -134,22 +156,26 @@
       const absent = list.filter(r => !r.present);
       const present = list.filter(r => r.present);
 
-      // 計數
+      // 更新計數
       countAbsent.textContent = absent.length;
       countPresent.textContent = present.length;
 
-      // 左：未出席
+      // 左側：未出席表
       if(!absent.length){
-        tbodyAbsent.innerHTML = `<tr><td style="color:#9aa3b2">沒有未出席的人</td></tr>`;
+        tbodyAbsent.innerHTML = `<tr><td style="color:var(--muted); font-style:italic;">目前沒有未出席的人</td></tr>`;
       }else{
-        tbodyAbsent.innerHTML = absent.map(r=>`<tr><td>${escapeHtml(r.name)}</td></tr>`).join('');
+        tbodyAbsent.innerHTML = absent.map(r=>
+          `<tr><td>${escapeHtml(r.name)}</td></tr>`
+        ).join('');
       }
 
-      // 右：出席
+      // 右側：出席表
       if(!present.length){
-        tbodyPresent.innerHTML = `<tr><td style="color:#9aa3b2">目前沒有出席的人</td></tr>`;
+        tbodyPresent.innerHTML = `<tr><td style="color:var(--muted); font-style:italic;">目前沒有出席的人</td></tr>`;
       }else{
-        tbodyPresent.innerHTML = present.map(r=>`<tr><td>${escapeHtml(r.name)}</td></tr>`).join('');
+        tbodyPresent.innerHTML = present.map(r=>
+          `<tr><td>${escapeHtml(r.name)}</td></tr>`
+        ).join('');
       }
     }
 
@@ -158,24 +184,26 @@
     }
 
     async function load(){
-      tbodyAbsent.innerHTML = `<tr><td style="color:#9aa3b2">正在讀取資料…</td></tr>`;
-      tbodyPresent.innerHTML = `<tr><td style="color:#9aa3b2">正在讀取資料…</td></tr>`;
+      tbodyAbsent.innerHTML = `<tr><td style="color:var(--muted)">正在讀取資料…</td></tr>`;
+      tbodyPresent.innerHTML = `<tr><td style="color:var(--muted)">正在讀取資料…</td></tr>`;
       errorEl.classList.add('hidden');
       try{
         const csv = await fetchCSV(CSV_URL);
         state.rows = parseCSV(csv);
-        updatedAt.textContent = new Date().toLocaleString();
+        updatedAt.textContent = new Date().toLocaleString('zh-TW');
         render();
       }catch(err){
         console.error(err);
         errorEl.classList.remove('hidden');
-        tbodyAbsent.innerHTML = `<tr><td style="color:#ffb1af">載入失敗</td></tr>`;
-        tbodyPresent.innerHTML = `<tr><td style="color:#ffb1af">載入失敗</td></tr>`;
+        tbodyAbsent.innerHTML = `<tr><td style="color:var(--no)">載入失敗</td></tr>`;
+        tbodyPresent.innerHTML = `<tr><td style="color:var(--no)">載入失敗</td></tr>`;
       }
     }
 
     filterInput.addEventListener('input', render);
     refreshBtn.addEventListener('click', load);
+    
+    // 頁面載入時自動讀取資料
     load();
   </script>
 </body>
