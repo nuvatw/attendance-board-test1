@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>出席狀況看板</title>
+  <style>
+    :root { --bg:#0b1020; --card:#121935; --text:#e7eaf6; --muted:#9aa3b2; --ok:#1db954; --no:#ff5e5b; }
+    *{ box-sizing:border-box; }
+    body{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji"; background:linear-gradient(180deg,#0b1020,#0c1328); color:var(--text); }
+    header{ padding:28px 20px 12px; text-align:center; }
+    h1{ margin:0 0 8px; font-size:28px; letter-spacing:.5px; }
+    .sub{ color:var(--muted); font-size:14px; }
+    .wrap{ max-width:860px; margin:20px auto 40px; padding:0 16px; }
+    .card{ background:var(--card); border:1px solid rgba(255,255,255,.07); border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,.25); overflow:hidden; }
+    .toolbar{ display:flex; gap:10px; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.06); }
+    .toolbar input{ flex:1; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.04); color:var(--text); outline:none; }
+    .toolbar button{ padding:10px 12px; border-radius:10px; border:none; background:rgba(255,255,255,.08); color:var(--text); cursor:pointer; }
+    .toolbar button:hover{ background:rgba(255,255,255,.14); }
+    table{ width:100%; border-collapse:separate; border-spacing:0; }
+    thead th{ text-align:left; color:var(--muted); font-weight:600; padding:14px; font-size:13px; border-bottom:1px solid rgba(255,255,255,.08); }
+    tbody td{ padding:14px; border-bottom:1px solid rgba(255,255,255,.06); }
+    .badge{ padding:6px 10px; border-radius:999px; font-size:12px; font-weight:700; letter-spacing:.3px; display:inline-flex; align-items:center; gap:6px; }
+    .ok{ background:rgba(29,185,84,.15); color:#9de2b5; border:1px solid rgba(29,185,84,.35); }
+    .no{ background:rgba(255,94,91,.12); color:#ffb1af; border:1px solid rgba(255,94,91,.35); }
+    .footer{ padding:14px; font-size:12px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; }
+    .hidden{ display:none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>出席狀況看板</h1>
+    <div class="sub">此頁面會即時讀取 Google 試算表（重新整理即可看到最新資料）</div>
+  </header>
+  <div class="wrap">
+    <div class="card">
+      <div class="toolbar">
+        <input id="filter" placeholder="搜尋姓名…" />
+        <button id="refresh">重新讀取</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:60%">姓名</th>
+              <th style="width:40%">出席狀況</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="2" id="loading">正在讀取資料…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="footer">
+        <span>最後更新：<span id="updatedAt">—</span></span>
+        <span id="error" class="hidden">無法載入資料，請檢查連結</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // STEP 1：把下方的 CSV_URL 換成你的 Google 試算表「發佈到網路」的 CSV 連結
+    // 範例格式：
+    // https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/gviz/tq?tqx=out:csv&sheet=工作表名稱
+    const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTQGytA6fvvxqjX9nnXxoa1X7ZUxUMHOm7yKyJV8yU5LsJ0INRZweXz8LOADqEJv1z2OVnfWnRpgYSz/pub?gid=0&single=true&output=csv";
+
+    const state = { rows: [] };
+    const tbody = document.getElementById('tbody');
+    const updatedAt = document.getElementById('updatedAt');
+    const filterInput = document.getElementById('filter');
+    const refreshBtn = document.getElementById('refresh');
+    const errorEl = document.getElementById('error');
+
+    async function fetchCSV(url){
+      const res = await fetch(url, { cache: 'no-store' }); // 避免快取
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      return await res.text();
+    }
+
+    function parseCSV(text){
+      // 以最簡單的 CSV（無逗號內嵌、UTF-8）為前提；只需兩欄：姓名、出席狀況
+      const lines = text.trim().split(/\r?\n/);
+      const rows = [];
+      // 若首列為標題，偵測「姓名」「出席狀況」，自動略過
+      let start = 0;
+      if(lines.length && /姓名/.test(lines[0]) && /出席/.test(lines[0])) start = 1;
+      for(let i=start;i<lines.length;i++){
+        const cols = lines[i].split(',');
+        const name = (cols[0]||'').trim();
+        const raw = (cols[1]||'').trim().toUpperCase();
+        const present = raw === 'TRUE' || raw === 'YES' || raw === '1' || raw === '出席';
+        if(name) rows.push({ name, present });
+      }
+      return rows;
+    }
+
+    function render(){
+      const q = filterInput.value.trim().toLowerCase();
+      const filtered = !q ? state.rows : state.rows.filter(r => r.name.toLowerCase().includes(q));
+      if(!filtered.length){
+        tbody.innerHTML = `<tr><td colspan="2" style="color:#9aa3b2">沒有符合的資料</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = filtered.map(r => `
+        <tr>
+          <td>${escapeHtml(r.name)}</td>
+          <td>
+            <span class="badge ${r.present ? 'ok' : 'no'}">${r.present ? '出席' : '未出席'}</span>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function escapeHtml(s){
+      return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+    }
+
+    async function load(){
+      tbody.innerHTML = `<tr><td colspan="2" id="loading">正在讀取資料…</td></tr>`;
+      errorEl.classList.add('hidden');
+      try{
+        const csv = await fetchCSV(CSV_URL);
+        state.rows = parseCSV(csv);
+        updatedAt.textContent = new Date().toLocaleString();
+        render();
+      }catch(err){
+        console.error(err);
+        errorEl.classList.remove('hidden');
+        tbody.innerHTML = `<tr><td colspan="2" style="color:#ffb1af">載入失敗</td></tr>`;
+      }
+    }
+
+    filterInput.addEventListener('input', render);
+    refreshBtn.addEventListener('click', load);
+    load();
+  </script>
+</body>
+</html>
