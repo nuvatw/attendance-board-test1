@@ -11,20 +11,27 @@
     header{ padding:28px 20px 12px; text-align:center; }
     h1{ margin:0 0 8px; font-size:28px; letter-spacing:.5px; }
     .sub{ color:var(--muted); font-size:14px; }
-    .wrap{ max-width:860px; margin:20px auto 40px; padding:0 16px; }
+    .wrap{ max-width:1080px; margin:20px auto 40px; padding:0 16px; }
     .card{ background:var(--card); border:1px solid rgba(255,255,255,.07); border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,.25); overflow:hidden; }
     .toolbar{ display:flex; gap:10px; align-items:center; padding:14px; border-bottom:1px solid rgba(255,255,255,.06); }
     .toolbar input{ flex:1; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.04); color:var(--text); outline:none; }
     .toolbar button{ padding:10px 12px; border-radius:10px; border:none; background:rgba(255,255,255,.08); color:var(--text); cursor:pointer; }
     .toolbar button:hover{ background:rgba(255,255,255,.14); }
+    .grid{ display:grid; grid-template-columns: 1fr; gap:16px; padding:14px; }
+    @media (min-width: 820px){ .grid{ grid-template-columns: 1fr 1fr; } }
+    .panel{ border:1px solid rgba(255,255,255,.06); border-radius:14px; overflow:hidden; }
+    .panel header{ display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-bottom:1px solid rgba(255,255,255,.06); text-align:left; }
+    .panel h2{ margin:0; font-size:16px; letter-spacing:.3px; }
+    .count{ font-size:12px; color:var(--muted); }
     table{ width:100%; border-collapse:separate; border-spacing:0; }
-    thead th{ text-align:left; color:var(--muted); font-weight:600; padding:14px; font-size:13px; border-bottom:1px solid rgba(255,255,255,.08); }
-    tbody td{ padding:14px; border-bottom:1px solid rgba(255,255,255,.06); }
+    thead th{ text-align:left; color:var(--muted); font-weight:600; padding:12px 14px; font-size:13px; border-bottom:1px solid rgba(255,255,255,.08); }
+    tbody td{ padding:12px 14px; border-bottom:1px solid rgba(255,255,255,.06); }
     .badge{ padding:6px 10px; border-radius:999px; font-size:12px; font-weight:700; letter-spacing:.3px; display:inline-flex; align-items:center; gap:6px; }
     .ok{ background:rgba(29,185,84,.15); color:#9de2b5; border:1px solid rgba(29,185,84,.35); }
     .no{ background:rgba(255,94,91,.12); color:#ffb1af; border:1px solid rgba(255,94,91,.35); }
-    .footer{ padding:14px; font-size:12px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; }
+    .footer{ padding:14px; font-size:12px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(255,255,255,.06); }
     .hidden{ display:none; }
+    .hint{ padding:10px 14px; color:var(--muted); font-size:12px; }
   </style>
 </head>
 <body>
@@ -35,22 +42,46 @@
   <div class="wrap">
     <div class="card">
       <div class="toolbar">
-        <input id="filter" placeholder="搜尋姓名…" />
+        <input id="filter" placeholder="搜尋姓名…（兩邊同步過濾）" />
         <button id="refresh">重新讀取</button>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th style="width:60%">姓名</th>
-              <th style="width:40%">出席狀況</th>
-            </tr>
-          </thead>
-          <tbody id="tbody">
-            <tr><td colspan="2" id="loading">正在讀取資料…</td></tr>
-          </tbody>
-        </table>
+
+      <div class="grid">
+        <!-- 未出席 -->
+        <section class="panel">
+          <header>
+            <h2>未出席 <span class="badge no">未出席</span></h2>
+            <span class="count">共 <span id="countAbsent">0</span> 人</span>
+          </header>
+          <div class="hint">左側列出目前未出席名單</div>
+          <table>
+            <thead>
+              <tr><th>姓名</th></tr>
+            </thead>
+            <tbody id="tbodyAbsent">
+              <tr><td style="color:#9aa3b2">正在讀取資料…</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- 出席 -->
+        <section class="panel">
+          <header>
+            <h2>出席 <span class="badge ok">出席</span></h2>
+            <span class="count">共 <span id="countPresent">0</span> 人</span>
+          </header>
+          <div class="hint">右側列出目前已出席名單</div>
+          <table>
+            <thead>
+              <tr><th>姓名</th></tr>
+            </thead>
+            <tbody id="tbodyPresent">
+              <tr><td style="color:#9aa3b2">正在讀取資料…</td></tr>
+            </tbody>
+          </table>
+        </section>
       </div>
+
       <div class="footer">
         <span>最後更新：<span id="updatedAt">—</span></span>
         <span id="error" class="hidden">無法載入資料，請檢查連結</span>
@@ -59,29 +90,30 @@
   </div>
 
   <script>
-    // STEP 1：把下方的 CSV_URL 換成你的 Google 試算表「發佈到網路」的 CSV 連結
-    // 範例格式：
-    // https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/gviz/tq?tqx=out:csv&sheet=工作表名稱
+    // 將下方的 CSV_URL 換成你的 Google 試算表 CSV 連結
     const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTQGytA6fvvxqjX9nnXxoa1X7ZUxUMHOm7yKyJV8yU5LsJ0INRZweXz8LOADqEJv1z2OVnfWnRpgYSz/pub?gid=0&single=true&output=csv";
 
     const state = { rows: [] };
-    const tbody = document.getElementById('tbody');
     const updatedAt = document.getElementById('updatedAt');
     const filterInput = document.getElementById('filter');
     const refreshBtn = document.getElementById('refresh');
     const errorEl = document.getElementById('error');
+    const tbodyAbsent = document.getElementById('tbodyAbsent');
+    const tbodyPresent = document.getElementById('tbodyPresent');
+    const countAbsent = document.getElementById('countAbsent');
+    const countPresent = document.getElementById('countPresent');
 
     async function fetchCSV(url){
-      const res = await fetch(url, { cache: 'no-store' }); // 避免快取
+      const res = await fetch(url, { cache: 'no-store' });
       if(!res.ok) throw new Error('HTTP '+res.status);
       return await res.text();
     }
 
     function parseCSV(text){
-      // 以最簡單的 CSV（無逗號內嵌、UTF-8）為前提；只需兩欄：姓名、出席狀況
-      const lines = text.trim().split(/\r?\n/);
+      const lines = text.trim().split(/
+?
+/);
       const rows = [];
-      // 若首列為標題，偵測「姓名」「出席狀況」，自動略過
       let start = 0;
       if(lines.length && /姓名/.test(lines[0]) && /出席/.test(lines[0])) start = 1;
       for(let i=start;i<lines.length;i++){
@@ -91,24 +123,34 @@
         const present = raw === 'TRUE' || raw === 'YES' || raw === '1' || raw === '出席';
         if(name) rows.push({ name, present });
       }
+      // 預設按姓名排序（先未出席、再出席）
+      rows.sort((a,b)=> a.name.localeCompare(b.name,'zh-Hant'));
       return rows;
     }
 
     function render(){
       const q = filterInput.value.trim().toLowerCase();
-      const filtered = !q ? state.rows : state.rows.filter(r => r.name.toLowerCase().includes(q));
-      if(!filtered.length){
-        tbody.innerHTML = `<tr><td colspan="2" style="color:#9aa3b2">沒有符合的資料</td></tr>`;
-        return;
+      const list = !q ? state.rows : state.rows.filter(r => r.name.toLowerCase().includes(q));
+      const absent = list.filter(r => !r.present);
+      const present = list.filter(r => r.present);
+
+      // 計數
+      countAbsent.textContent = absent.length;
+      countPresent.textContent = present.length;
+
+      // 左：未出席
+      if(!absent.length){
+        tbodyAbsent.innerHTML = `<tr><td style="color:#9aa3b2">沒有未出席的人</td></tr>`;
+      }else{
+        tbodyAbsent.innerHTML = absent.map(r=>`<tr><td>${escapeHtml(r.name)}</td></tr>`).join('');
       }
-      tbody.innerHTML = filtered.map(r => `
-        <tr>
-          <td>${escapeHtml(r.name)}</td>
-          <td>
-            <span class="badge ${r.present ? 'ok' : 'no'}">${r.present ? '出席' : '未出席'}</span>
-          </td>
-        </tr>
-      `).join('');
+
+      // 右：出席
+      if(!present.length){
+        tbodyPresent.innerHTML = `<tr><td style="color:#9aa3b2">目前沒有出席的人</td></tr>`;
+      }else{
+        tbodyPresent.innerHTML = present.map(r=>`<tr><td>${escapeHtml(r.name)}</td></tr>`).join('');
+      }
     }
 
     function escapeHtml(s){
@@ -116,7 +158,8 @@
     }
 
     async function load(){
-      tbody.innerHTML = `<tr><td colspan="2" id="loading">正在讀取資料…</td></tr>`;
+      tbodyAbsent.innerHTML = `<tr><td style="color:#9aa3b2">正在讀取資料…</td></tr>`;
+      tbodyPresent.innerHTML = `<tr><td style="color:#9aa3b2">正在讀取資料…</td></tr>`;
       errorEl.classList.add('hidden');
       try{
         const csv = await fetchCSV(CSV_URL);
@@ -126,7 +169,8 @@
       }catch(err){
         console.error(err);
         errorEl.classList.remove('hidden');
-        tbody.innerHTML = `<tr><td colspan="2" style="color:#ffb1af">載入失敗</td></tr>`;
+        tbodyAbsent.innerHTML = `<tr><td style="color:#ffb1af">載入失敗</td></tr>`;
+        tbodyPresent.innerHTML = `<tr><td style="color:#ffb1af">載入失敗</td></tr>`;
       }
     }
 
